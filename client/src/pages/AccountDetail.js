@@ -103,7 +103,7 @@ function AccountDetail() {
                   <tr key={a.id}>
                     <td>{a.title}</td>
                     <td><span className={`badge ${a.status === 'completed' ? 'badge-success' : 'badge-warning'}`}>{a.status}</span></td>
-                    <td>{a.overall_score ? `${a.overall_score}/5` : '-'}</td>
+                    <td>{a.overall_score ? `${a.overall_score}/10` : '-'}</td>
                     <td>{new Date(a.started_at).toLocaleDateString()}</td>
                     <td><Link to={`/assessments/${a.id}`} className="btn btn-outline btn-sm">View</Link></td>
                   </tr>

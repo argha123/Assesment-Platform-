@@ -55,8 +55,8 @@ function Reports() {
                     <td style={{ fontWeight: 500 }}>{report.assessment_title}</td>
                     <td>{report.account_name}</td>
                     <td>
-                      <span className={`badge ${report.overall_score >= 3.5 ? 'badge-success' : report.overall_score >= 2.5 ? 'badge-warning' : 'badge-danger'}`}>
-                        {report.overall_score}/5
+                      <span className={`badge ${report.overall_score >= 7 ? 'badge-success' : report.overall_score >= 5 ? 'badge-warning' : 'badge-danger'}`}>
+                        {report.overall_score}/10
                       </span>
                     </td>
                     <td>{new Date(report.generated_at).toLocaleDateString()}</td>

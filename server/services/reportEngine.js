@@ -66,22 +66,22 @@ function calculateDetailedScores(responses) {
 }
 
 function getMaturityLevel(score) {
-  if (score >= 4.5) return { level: 5, name: 'Optimizing', description: 'Continuous improvement with industry-leading practices' };
-  if (score >= 3.5) return { level: 4, name: 'Managed', description: 'Measured and controlled processes with proactive management' };
-  if (score >= 2.5) return { level: 3, name: 'Defined', description: 'Standardized processes across the organization' };
-  if (score >= 1.5) return { level: 2, name: 'Repeatable', description: 'Basic processes established but inconsistently applied' };
+  if (score >= 9) return { level: 5, name: 'Optimizing', description: 'Continuous improvement with industry-leading practices' };
+  if (score >= 7) return { level: 4, name: 'Managed', description: 'Measured and controlled processes with proactive management' };
+  if (score >= 5) return { level: 3, name: 'Defined', description: 'Standardized processes across the organization' };
+  if (score >= 3) return { level: 2, name: 'Repeatable', description: 'Basic processes established but inconsistently applied' };
   return { level: 1, name: 'Initial', description: 'Ad hoc processes with minimal documentation' };
 }
 
 function identifyGaps(scores) {
   const gaps = [];
   Object.entries(scores.subcategoryBreakdown).forEach(([key, data]) => {
-    if (data.avgScore < 2.5) {
+    if (data.avgScore < 5) {
       gaps.push({
         area: data.subcategory,
         category: data.category,
         score: data.avgScore,
-        severity: data.avgScore < 1.5 ? 'critical' : 'significant',
+        severity: data.avgScore < 3 ? 'critical' : 'significant',
         description: `${data.subcategory} in ${data.category} is significantly below maturity expectations`
       });
     }
@@ -92,7 +92,7 @@ function identifyGaps(scores) {
 function identifyStrengths(scores) {
   const strengths = [];
   Object.entries(scores.subcategoryBreakdown).forEach(([key, data]) => {
-    if (data.avgScore >= 3.5) {
+    if (data.avgScore >= 7) {
       strengths.push({
         area: data.subcategory,
         category: data.category,
@@ -121,7 +121,7 @@ function identifyRisks(scores, assessment) {
   });
   
   // Technology-specific risks
-  if (scores.categoryBreakdown.technology && scores.categoryBreakdown.technology.avgScore < 2.5) {
+  if (scores.categoryBreakdown.technology && scores.categoryBreakdown.technology.avgScore < 5) {
     risks.push({
       risk: 'Technology infrastructure below industry standards',
       impact: 'High',
@@ -132,7 +132,7 @@ function identifyRisks(scores, assessment) {
   }
   
   // People risks
-  if (scores.categoryBreakdown.people && scores.categoryBreakdown.people.avgScore < 2.5) {
+  if (scores.categoryBreakdown.people && scores.categoryBreakdown.people.avgScore < 5) {
     risks.push({
       risk: 'Skills and organizational capability gaps',
       impact: 'High',
@@ -152,7 +152,7 @@ function generateRecommendations(scores, assessment) {
   // People recommendations
   if (scores.categoryBreakdown.people) {
     const peopleScore = scores.categoryBreakdown.people.avgScore;
-    if (peopleScore < 2.0) {
+    if (peopleScore < 4) {
       recommendations.push({
         priority: 'critical',
         category: 'people',
@@ -163,7 +163,7 @@ function generateRecommendations(scores, assessment) {
         timeline: '0-90 days'
       });
     }
-    if (peopleScore < 3.0) {
+    if (peopleScore < 6) {
       recommendations.push({
         priority: 'high',
         category: 'people',
@@ -174,7 +174,7 @@ function generateRecommendations(scores, assessment) {
         timeline: '30-90 days'
       });
     }
-    if (peopleScore < 4.0) {
+    if (peopleScore < 8) {
       recommendations.push({
         priority: 'medium',
         category: 'people',
@@ -190,7 +190,7 @@ function generateRecommendations(scores, assessment) {
   // Process recommendations
   if (scores.categoryBreakdown.process) {
     const processScore = scores.categoryBreakdown.process.avgScore;
-    if (processScore < 2.0) {
+    if (processScore < 4) {
       recommendations.push({
         priority: 'critical',
         category: 'process',
@@ -201,7 +201,7 @@ function generateRecommendations(scores, assessment) {
         timeline: '0-60 days'
       });
     }
-    if (processScore < 3.0) {
+    if (processScore < 6) {
       recommendations.push({
         priority: 'high',
         category: 'process',
@@ -212,7 +212,7 @@ function generateRecommendations(scores, assessment) {
         timeline: '30-120 days'
       });
     }
-    if (processScore < 4.0) {
+    if (processScore < 8) {
       recommendations.push({
         priority: 'medium',
         category: 'process',
@@ -228,7 +228,7 @@ function generateRecommendations(scores, assessment) {
   // Technology recommendations
   if (scores.categoryBreakdown.technology) {
     const techScore = scores.categoryBreakdown.technology.avgScore;
-    if (techScore < 2.0) {
+    if (techScore < 4) {
       recommendations.push({
         priority: 'critical',
         category: 'technology',
@@ -239,7 +239,7 @@ function generateRecommendations(scores, assessment) {
         timeline: '0-30 days'
       });
     }
-    if (techScore < 3.0) {
+    if (techScore < 6) {
       recommendations.push({
         priority: 'high',
         category: 'technology',
@@ -250,7 +250,7 @@ function generateRecommendations(scores, assessment) {
         timeline: '30-120 days'
       });
     }
-    if (techScore < 4.0) {
+    if (techScore < 8) {
       recommendations.push({
         priority: 'medium',
         category: 'technology',
@@ -373,7 +373,7 @@ function generateExecutiveSummary(assessment, scores, maturityLevel) {
   const industry = assessment.industry || 'IT';
   
   const categoryScores = Object.entries(scores.categoryBreakdown)
-    .map(([cat, data]) => `${cat.charAt(0).toUpperCase() + cat.slice(1)}: ${data.avgScore}/5`)
+    .map(([cat, data]) => `${cat.charAt(0).toUpperCase() + cat.slice(1)}: ${data.avgScore}/10`)
     .join(', ');
   
   const gaps = identifyGaps(scores);
@@ -383,12 +383,12 @@ function generateExecutiveSummary(assessment, scores, maturityLevel) {
   summary += `Overall Maturity Level: ${maturityLevel.level}/5 - ${maturityLevel.name}\n`;
   summary += `${maturityLevel.description}\n\n`;
   summary += `Category Scores: ${categoryScores}\n`;
-  summary += `Overall Score: ${overallScore}/5\n\n`;
+  summary += `Overall Score: ${overallScore}/10\n\n`;
   
   if (strengths.length > 0) {
     summary += `Key Strengths:\n`;
     strengths.slice(0, 3).forEach(s => {
-      summary += `- ${s.description} (${s.score}/5)\n`;
+      summary += `- ${s.description} (${s.score}/10)\n`;
     });
     summary += '\n';
   }
@@ -396,7 +396,7 @@ function generateExecutiveSummary(assessment, scores, maturityLevel) {
   if (gaps.length > 0) {
     summary += `Critical Gaps Identified:\n`;
     gaps.slice(0, 5).forEach(g => {
-      summary += `- ${g.description} (${g.score}/5) [${g.severity}]\n`;
+      summary += `- ${g.description} (${g.score}/10) [${g.severity}]\n`;
     });
     summary += '\n';
   }
