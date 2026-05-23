@@ -100,7 +100,7 @@ function Dashboard() {
               <BarChart data={scoreData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
-                <YAxis domain={[0, 5]} />
+                <YAxis domain={[0, 10]} />
                 <Tooltip />
                 <Bar dataKey="people" fill="#1a237e" name="People" />
                 <Bar dataKey="process" fill="#2e7d32" name="Process" />
@@ -115,7 +115,7 @@ function Dashboard() {
               <RadarChart data={categoryAvg}>
                 <PolarGrid />
                 <PolarAngleAxis dataKey="name" />
-                <PolarRadiusAxis domain={[0, 5]} />
+                <PolarRadiusAxis domain={[0, 10]} />
                 <Radar name="Score" dataKey="value" stroke="#1a237e" fill="#1a237e" fillOpacity={0.3} />
               </RadarChart>
             </ResponsiveContainer>
@@ -158,7 +158,7 @@ function Dashboard() {
                         {a.status}
                       </span>
                     </td>
-                    <td>{a.overall_score ? `${a.overall_score}/5` : '-'}</td>
+                    <td>{a.overall_score ? `${a.overall_score}/10` : '-'}</td>
                     <td>{new Date(a.started_at).toLocaleDateString()}</td>
                   </tr>
                 ))}

@@ -38,7 +38,7 @@ function ReportDetail() {
   const categoryData = Object.entries(categoryBreakdown).map(([cat, data]) => ({
     name: cat.charAt(0).toUpperCase() + cat.slice(1),
     score: data.avgScore,
-    fullMark: 5
+    fullMark: 10
   }));
 
   const subcategoryData = Object.entries(subcategoryBreakdown).map(([key, data]) => ({
@@ -69,7 +69,7 @@ function ReportDetail() {
       {/* Score Summary */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className={`score-circle ${report.overall_score >= 3.5 ? 'score-high' : report.overall_score >= 2.5 ? 'score-medium' : 'score-low'}`}>
+          <div className={`score-circle ${report.overall_score >= 7 ? 'score-high' : report.overall_score >= 5 ? 'score-medium' : 'score-low'}`}>
             {report.overall_score}
           </div>
           <div className="stat-info">
@@ -78,7 +78,7 @@ function ReportDetail() {
           </div>
         </div>
         <div className="stat-card">
-          <div className={`score-circle ${report.people_score >= 3.5 ? 'score-high' : report.people_score >= 2.5 ? 'score-medium' : 'score-low'}`}>
+          <div className={`score-circle ${report.people_score >= 7 ? 'score-high' : report.people_score >= 5 ? 'score-medium' : 'score-low'}`}>
             {report.people_score}
           </div>
           <div className="stat-info">
@@ -87,7 +87,7 @@ function ReportDetail() {
           </div>
         </div>
         <div className="stat-card">
-          <div className={`score-circle ${report.process_score >= 3.5 ? 'score-high' : report.process_score >= 2.5 ? 'score-medium' : 'score-low'}`}>
+          <div className={`score-circle ${report.process_score >= 7 ? 'score-high' : report.process_score >= 5 ? 'score-medium' : 'score-low'}`}>
             {report.process_score}
           </div>
           <div className="stat-info">
@@ -96,7 +96,7 @@ function ReportDetail() {
           </div>
         </div>
         <div className="stat-card">
-          <div className={`score-circle ${report.technology_score >= 3.5 ? 'score-high' : report.technology_score >= 2.5 ? 'score-medium' : 'score-low'}`}>
+          <div className={`score-circle ${report.technology_score >= 7 ? 'score-high' : report.technology_score >= 5 ? 'score-medium' : 'score-low'}`}>
             {report.technology_score}
           </div>
           <div className="stat-info">
@@ -124,7 +124,7 @@ function ReportDetail() {
                 <RadarChart data={categoryData}>
                   <PolarGrid />
                   <PolarAngleAxis dataKey="name" />
-                  <PolarRadiusAxis domain={[0, 5]} />
+                  <PolarRadiusAxis domain={[0, 10]} />
                   <Radar name="Score" dataKey="score" stroke="#1a237e" fill="#1a237e" fillOpacity={0.3} />
                 </RadarChart>
               </ResponsiveContainer>
@@ -160,17 +160,17 @@ function ReportDetail() {
               <h3 style={{ marginBottom: '16px', color: '#2e7d32' }}>Key Strengths</h3>
               {strengths.length > 0 ? strengths.map((s, i) => (
                 <div key={i} style={{ padding: '12px', border: '1px solid #e8f5e9', borderRadius: '8px', marginBottom: '8px', background: '#f9fff9' }}>
-                  <div style={{ fontWeight: 500 }}>{s.area} <span className="badge badge-success">{s.score}/5</span></div>
+                  <div style={{ fontWeight: 500 }}>{s.area} <span className="badge badge-success">{s.score}/10</span></div>
                   <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>{s.description}</div>
                 </div>
-              )) : <p style={{ color: '#666' }}>No areas scored above 3.5/5</p>}
+              )) : <p style={{ color: '#666' }}>No areas scored above 7/10</p>}
             </div>
 
             <div className="card">
               <h3 style={{ marginBottom: '16px', color: '#c62828' }}>Critical Gaps</h3>
               {gaps.length > 0 ? gaps.slice(0, 5).map((g, i) => (
                 <div key={i} style={{ padding: '12px', border: '1px solid #fce4ec', borderRadius: '8px', marginBottom: '8px', background: '#fffafa' }}>
-                  <div style={{ fontWeight: 500 }}>{g.area} <span className={`badge ${g.severity === 'critical' ? 'badge-danger' : 'badge-warning'}`}>{g.score}/5</span></div>
+                  <div style={{ fontWeight: 500 }}>{g.area} <span className={`badge ${g.severity === 'critical' ? 'badge-danger' : 'badge-warning'}`}>{g.score}/10</span></div>
                   <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>{g.description}</div>
                 </div>
               )) : <p style={{ color: '#666' }}>No critical gaps identified</p>}
@@ -187,12 +187,12 @@ function ReportDetail() {
             <ResponsiveContainer width="100%" height={Math.max(400, subcategoryData.length * 35)}>
               <BarChart data={subcategoryData} layout="vertical" margin={{ left: 150 }}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" domain={[0, 5]} />
+                <XAxis type="number" domain={[0, 10]} />
                 <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 12 }} />
                 <Tooltip />
                 <Bar dataKey="score" fill="#1a237e">
                   {subcategoryData.map((entry, index) => (
-                    <Cell key={index} fill={entry.score >= 3.5 ? '#2e7d32' : entry.score >= 2.5 ? '#ef6c00' : '#c62828'} />
+                    <Cell key={index} fill={entry.score >= 7 ? '#2e7d32' : entry.score >= 5 ? '#ef6c00' : '#c62828'} />
                   ))}
                 </Bar>
               </BarChart>
