@@ -1,8 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { initializeDatabase } = require('./models/database');
+const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
+const { initializeDatabase, getDb } = require('./models/database');
 
+const authRoutes = require('./routes/auth');
 const accountRoutes = require('./routes/accounts');
 const assessmentRoutes = require('./routes/assessments');
 const questionRoutes = require('./routes/questions');
@@ -18,7 +21,17 @@ app.use(express.json({ limit: '10mb' }));
 // Initialize database
 initializeDatabase();
 
+// Seed default admin user
+const db = getDb();
+const existingAdmin = db.prepare('SELECT id FROM users WHERE email = ?').get('admin@assessment.local');
+if (!existingAdmin) {
+  const hash = bcrypt.hashSync('admin123', 10);
+  db.prepare('INSERT INTO users (id, name, email, password, role) VALUES (?, ?, ?, ?, ?)').run(uuidv4(), 'System Admin', 'admin@assessment.local', hash, 'admin');
+  console.log('Default admin user created (admin@assessment.local / admin123)');
+}
+
 // API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/accounts', accountRoutes);
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/questions', questionRoutes);
