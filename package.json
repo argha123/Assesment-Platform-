@@ -1,0 +1,30 @@
+{
+  "name": "it-infrastructure-assessment-platform",
+  "version": "1.0.0",
+  "description": "Enterprise IT Infrastructure Assessment Platform - People, Process & Technology",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && cd client && npm install",
+    "server": "node server/index.js",
+    "client": "cd client && npm start",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "seed": "node server/data/seed.js",
+    "seed:dwp": "node server/data/seedDWP.js",
+    "start": "npm run server"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^11.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "node-cron": "^4.2.1",
+    "pdfkit": "^0.18.0",
+    "uuid": "^9.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
