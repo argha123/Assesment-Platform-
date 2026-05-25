@@ -211,10 +211,24 @@ function initializeDatabase() {
       phase TEXT,
       progress INTEGER DEFAULT 0,
       notes TEXT,
+      created_by TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       completed_at DATETIME,
       FOREIGN KEY (assessment_id) REFERENCES assessments(id) ON DELETE CASCADE
+    );
+
+    -- Action Item Activity Logs
+    CREATE TABLE IF NOT EXISTS action_item_logs (
+      id TEXT PRIMARY KEY,
+      action_item_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      from_value TEXT,
+      to_value TEXT,
+      user_name TEXT,
+      note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (action_item_id) REFERENCES action_items(id) ON DELETE CASCADE
     );
 
     -- Webhooks
@@ -370,6 +384,27 @@ function initializeDatabase() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
   `);
+
+  // Migrations: add columns/tables that may not exist in older databases
+  try {
+    database.exec(`ALTER TABLE action_items ADD COLUMN created_by TEXT`);
+  } catch (e) { /* column already exists */ }
+
+  try {
+    database.exec(`
+      CREATE TABLE IF NOT EXISTS action_item_logs (
+        id TEXT PRIMARY KEY,
+        action_item_id TEXT NOT NULL,
+        action TEXT NOT NULL,
+        from_value TEXT,
+        to_value TEXT,
+        user_name TEXT,
+        note TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (action_item_id) REFERENCES action_items(id) ON DELETE CASCADE
+      )
+    `);
+  } catch (e) { /* table already exists */ }
 
   return database;
 }

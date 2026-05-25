@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   getActionItems, createActionItem, updateActionItem, deleteActionItem,
-  getBurnDown, getAssessments
+  getBurnDown, getAssessments, getActionItemLogs, addActionItemNote
 } from '../services/api';
 import {
   IconLayout, IconPlus, IconTrash, IconCalendar, IconUser, IconEdit
@@ -34,6 +34,10 @@ function ActionItems() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [draggedId, setDraggedId] = useState(null);
+  const [detailItem, setDetailItem] = useState(null);
+  const [detailLogs, setDetailLogs] = useState([]);
+  const [newNote, setNewNote] = useState('');
+  const [loadingLogs, setLoadingLogs] = useState(false);
   const [form, setForm] = useState({
     title: '', description: '', priority: 'medium',
     assignee_name: '', due_date: '', phase: '', category: '', effort: '', impact: ''
@@ -43,8 +47,9 @@ function ActionItems() {
   useEffect(() => {
     getAssessments()
       .then(res => {
-        setAssessments(res.data || []);
-        if (res.data?.length) setSelectedAssessment(res.data[0].id);
+        const all = res.data || [];
+        setAssessments(all);
+        if (all.length) setSelectedAssessment(all[0].id);
       })
       .catch(() => setAssessments([]))
       .finally(() => setLoading(false));
@@ -59,12 +64,19 @@ function ActionItems() {
 
   const loadItems = async () => {
     try {
-      const [itemsRes, bdRes] = await Promise.all([
-        getActionItems({ assessment_id: selectedAssessment }),
-        getBurnDown(selectedAssessment)
-      ]);
-      setItems(itemsRes.data || []);
-      setBurndown(bdRes.data);
+      if (selectedAssessment === '__all__') {
+        // Load items for ALL assessments
+        const itemsRes = await getActionItems({});
+        setItems(itemsRes.data || []);
+        setBurndown(null);
+      } else {
+        const [itemsRes, bdRes] = await Promise.all([
+          getActionItems({ assessment_id: selectedAssessment }),
+          getBurnDown(selectedAssessment)
+        ]);
+        setItems(itemsRes.data || []);
+        setBurndown(bdRes.data);
+      }
     } catch (e) {
       console.error('Failed to load action items:', e);
     }
@@ -108,6 +120,39 @@ function ActionItems() {
       impact: item.impact || ''
     });
     setShowForm(true);
+  };
+
+  const openDetail = async (item) => {
+    setDetailItem(item);
+    setLoadingLogs(true);
+    try {
+      const res = await getActionItemLogs(item.id);
+      setDetailLogs(res.data || []);
+    } catch {
+      setDetailLogs([]);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const closeDetail = () => {
+    setDetailItem(null);
+    setDetailLogs([]);
+    setNewNote('');
+  };
+
+  const handleAddNote = async () => {
+    if (!newNote.trim() || !detailItem) return;
+    try {
+      await addActionItemNote(detailItem.id, { note: newNote.trim(), user_name: 'Reviewer' });
+      setNewNote('');
+      // Reload logs
+      const res = await getActionItemLogs(detailItem.id);
+      setDetailLogs(res.data || []);
+      loadItems();
+    } catch (err) {
+      alert('Failed to add note');
+    }
   };
 
   const handleDelete = async (id) => {
@@ -162,7 +207,7 @@ function ActionItems() {
           <h2>Action Items</h2>
           <p>Kanban tracking for remediation tasks · Drag cards or use status buttons</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)} disabled={!selectedAssessment}>
+        <button className="btn btn-primary" onClick={() => setShowForm(true)} disabled={!selectedAssessment || selectedAssessment === '__all__'}>
           <IconPlus size={14} /> New Action Item
         </button>
       </div>
@@ -178,20 +223,85 @@ function ActionItems() {
       ) : (
         <>
           <div className="card" style={{ marginBottom: 20 }}>
-            <div className="form-row" style={{ gridTemplateColumns: '1fr', alignItems: 'end' }}>
+            <div className="form-row" style={{ gridTemplateColumns: '1fr auto', alignItems: 'end' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label>Assessment</label>
                 <select value={selectedAssessment} onChange={e => setSelectedAssessment(e.target.value)}>
+                  <option value="__all__">All Assessments (Correlation View)</option>
                   {assessments.map(a => (
-                    <option key={a.id} value={a.id}>{a.title} — {a.account_name}</option>
+                    <option key={a.id} value={a.id}>{a.title} — {a.account_name} {a.status === 'completed' ? '✓' : ''}</option>
                   ))}
                 </select>
               </div>
+              {selectedAssessment && selectedAssessment !== '__all__' && (
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', paddingBottom: 4 }}>
+                  {(() => {
+                    const a = assessments.find(x => x.id === selectedAssessment);
+                    return a ? `Score: ${a.overall_score || 'N/A'} | Status: ${a.status}` : '';
+                  })()}
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Correlation View - when "All Assessments" is selected */}
+          {selectedAssessment === '__all__' && (
+            <div style={{ marginBottom: 20 }}>
+              <div className="card" style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 650, marginBottom: 14 }}>Action Items Across Assessments</h3>
+                <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 16 }}>
+                  View and compare action items across all assessments to identify common patterns and cross-cutting concerns.
+                </p>
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Assessment</th>
+                        <th>Account</th>
+                        <th style={{ textAlign: 'center' }}>Total</th>
+                        <th style={{ textAlign: 'center' }}>Todo</th>
+                        <th style={{ textAlign: 'center' }}>In Progress</th>
+                        <th style={{ textAlign: 'center' }}>Review</th>
+                        <th style={{ textAlign: 'center' }}>Done</th>
+                        <th style={{ textAlign: 'center' }}>Completion</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {assessments.map(a => {
+                        const aItems = items.filter(i => i.assessment_id === a.id);
+                        const done = aItems.filter(i => i.status === 'done').length;
+                        const pct = aItems.length > 0 ? Math.round((done / aItems.length) * 100) : 0;
+                        return (
+                          <tr key={a.id} style={{ cursor: 'pointer' }} onClick={() => setSelectedAssessment(a.id)}>
+                            <td style={{ fontWeight: 500, fontSize: 13 }}>{a.title}</td>
+                            <td style={{ fontSize: 13 }}>{a.account_name}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 600 }}>{aItems.length}</td>
+                            <td style={{ textAlign: 'center', color: 'var(--gray-500)' }}>{aItems.filter(i => i.status === 'todo').length || '-'}</td>
+                            <td style={{ textAlign: 'center', color: 'var(--info-600)' }}>{aItems.filter(i => i.status === 'in_progress').length || '-'}</td>
+                            <td style={{ textAlign: 'center', color: 'var(--warning-600)' }}>{aItems.filter(i => i.status === 'review').length || '-'}</td>
+                            <td style={{ textAlign: 'center', color: 'var(--success-600)' }}>{done || '-'}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              {aItems.length > 0 ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                                  <div className="progress-bar" style={{ width: 60, height: 6 }}>
+                                    <div className="progress-fill green" style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <span style={{ fontSize: 11, fontWeight: 600 }}>{pct}%</span>
+                                </div>
+                              ) : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>No items</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Stats + Burn-down + Status mix */}
-          {burndown && burndown.total > 0 && (
+          {selectedAssessment !== '__all__' && burndown && burndown.total > 0 && (
             <div className="charts-grid" style={{ marginBottom: 20 }}>
               <div className="chart-card">
                 <h3>Burn-down</h3>
@@ -247,7 +357,7 @@ function ActionItems() {
           )}
 
           {/* Form modal */}
-          {showForm && (
+          {showForm && selectedAssessment !== '__all__' && (
             <div className="modal-overlay" onClick={resetForm}>
               <div className="modal" onClick={e => e.stopPropagation()}>
                 <h3>{editing ? 'Edit Action Item' : 'New Action Item'}</h3>
@@ -327,6 +437,7 @@ function ActionItems() {
           )}
 
           {/* Kanban */}
+          {selectedAssessment !== '__all__' && (
           <div className="kanban">
             {COLUMNS.map(col => (
               <div key={col.id} className="kanban-col"
@@ -363,7 +474,7 @@ function ActionItems() {
                             </button>
                           </div>
                         </div>
-                        <div className="kanban-title">{item.title}</div>
+                        <div className="kanban-title" style={{ cursor: 'pointer' }} onClick={() => openDetail(item)}>{item.title}</div>
                         {item.description && (
                           <div className="kanban-desc">{item.description}</div>
                         )}
@@ -375,6 +486,9 @@ function ActionItems() {
                         )}
 
                         <div className="kanban-meta">
+                          {item.assessment_title && selectedAssessment === '__all__' && (
+                            <span style={{ fontSize: 10, color: 'var(--brand-600)', fontWeight: 500 }}>{item.assessment_title}</span>
+                          )}
                           {item.assignee_name && (
                             <span><IconUser size={11} /> {item.assignee_name}</span>
                           )}
@@ -403,6 +517,102 @@ function ActionItems() {
               </div>
             ))}
           </div>
+          )}
+
+          {/* Detail Modal with Notes & Logs */}
+          {detailItem && (
+            <div className="modal-overlay" onClick={closeDetail}>
+              <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 640, maxHeight: '85vh', overflow: 'auto' }}>
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, gap: 12 }}>
+                  <div>
+                    <h3 style={{ fontSize: 17, marginBottom: 6 }}>{detailItem.title}</h3>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <span className={`badge ${PRIORITY_BADGE[detailItem.priority] || 'badge-info'}`}>{detailItem.priority}</span>
+                      <span className={`badge ${detailItem.status === 'done' ? 'badge-success' : detailItem.status === 'in_progress' ? 'badge-info' : detailItem.status === 'review' ? 'badge-warning' : 'badge-purple'}`}>{detailItem.status}</span>
+                      {detailItem.category && <span className="badge badge-purple">{detailItem.category}</span>}
+                    </div>
+                  </div>
+                  <button className="btn btn-outline btn-sm" onClick={closeDetail}>✕</button>
+                </div>
+
+                {/* Details */}
+                {detailItem.description && (
+                  <div style={{ marginBottom: 16, padding: 12, background: 'var(--gray-50)', borderRadius: 'var(--r-md)', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    {detailItem.description}
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16, fontSize: 13 }}>
+                  <div><strong style={{ color: 'var(--text-tertiary)' }}>Assignee:</strong> {detailItem.assignee_name || 'Unassigned'}</div>
+                  <div><strong style={{ color: 'var(--text-tertiary)' }}>Due Date:</strong> {detailItem.due_date ? new Date(detailItem.due_date).toLocaleDateString() : 'Not set'}</div>
+                  <div><strong style={{ color: 'var(--text-tertiary)' }}>Phase:</strong> {detailItem.phase ? `${detailItem.phase} days` : 'Not set'}</div>
+                  <div><strong style={{ color: 'var(--text-tertiary)' }}>Effort:</strong> {detailItem.effort || 'Not set'}</div>
+                  <div><strong style={{ color: 'var(--text-tertiary)' }}>Created:</strong> {new Date(detailItem.created_at).toLocaleString()}</div>
+                  <div><strong style={{ color: 'var(--text-tertiary)' }}>Created By:</strong> {detailItem.created_by || 'System'}</div>
+                </div>
+
+                {/* Notes */}
+                {detailItem.notes && (
+                  <div style={{ marginBottom: 16 }}>
+                    <h4 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes</h4>
+                    <div style={{ padding: 12, background: 'var(--warning-50)', border: '1px solid var(--warning-100)', borderRadius: 'var(--r-md)', fontSize: 12, whiteSpace: 'pre-wrap', lineHeight: 1.7, color: 'var(--text-secondary)' }}>
+                      {detailItem.notes}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add Note */}
+                <div style={{ marginBottom: 20 }}>
+                  <h4 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Add Note</h4>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      value={newNote}
+                      onChange={e => setNewNote(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleAddNote(); }}
+                      placeholder="Add a note or comment..."
+                      style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 'var(--r-md)', fontSize: 13 }}
+                    />
+                    <button className="btn btn-primary btn-sm" onClick={handleAddNote} disabled={!newNote.trim()}>Add</button>
+                  </div>
+                </div>
+
+                {/* Activity Log */}
+                <div>
+                  <h4 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Activity Log</h4>
+                  {loadingLogs ? (
+                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>Loading logs...</div>
+                  ) : detailLogs.length === 0 ? (
+                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No activity recorded yet</div>
+                  ) : (
+                    <div style={{ position: 'relative', paddingLeft: 20 }}>
+                      <div style={{ position: 'absolute', left: 7, top: 4, bottom: 4, width: 2, background: 'var(--gray-200)' }} />
+                      {detailLogs.map((log, i) => (
+                        <div key={log.id || i} style={{ position: 'relative', marginBottom: 12, paddingLeft: 16 }}>
+                          <div style={{
+                            position: 'absolute', left: -4, top: 5, width: 10, height: 10, borderRadius: '50%',
+                            background: log.action === 'status_change' ? 'var(--info-500)' :
+                              log.action === 'created' ? 'var(--success-500)' :
+                              log.action === 'assigned' ? 'var(--purple-500)' :
+                              log.action === 'note_added' ? 'var(--warning-500)' : 'var(--gray-400)',
+                            border: '2px solid white', boxShadow: '0 0 0 2px var(--gray-100)'
+                          }} />
+                          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                            <strong>{log.user_name || 'System'}</strong>
+                            {' — '}
+                            <span>{log.note || log.action}</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                            {new Date(log.created_at).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

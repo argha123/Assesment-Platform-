@@ -8,14 +8,18 @@ router.get('/', (req, res) => {
   try {
     const db = getDb();
     const { assessment_id, status, priority, assignee_id, phase } = req.query;
-    let query = 'SELECT * FROM action_items WHERE 1=1';
+    let query = `SELECT ai.*, a.title as assessment_title, acc.name as account_name 
+      FROM action_items ai 
+      LEFT JOIN assessments a ON ai.assessment_id = a.id 
+      LEFT JOIN accounts acc ON a.account_id = acc.id 
+      WHERE 1=1`;
     const params = [];
-    if (assessment_id) { query += ' AND assessment_id = ?'; params.push(assessment_id); }
-    if (status) { query += ' AND status = ?'; params.push(status); }
-    if (priority) { query += ' AND priority = ?'; params.push(priority); }
-    if (assignee_id) { query += ' AND assignee_id = ?'; params.push(assignee_id); }
-    if (phase) { query += ' AND phase = ?'; params.push(phase); }
-    query += ' ORDER BY CASE priority WHEN "critical" THEN 1 WHEN "high" THEN 2 WHEN "medium" THEN 3 ELSE 4 END, due_date';
+    if (assessment_id) { query += ' AND ai.assessment_id = ?'; params.push(assessment_id); }
+    if (status) { query += ' AND ai.status = ?'; params.push(status); }
+    if (priority) { query += ' AND ai.priority = ?'; params.push(priority); }
+    if (assignee_id) { query += ' AND ai.assignee_id = ?'; params.push(assignee_id); }
+    if (phase) { query += ' AND ai.phase = ?'; params.push(phase); }
+    query += " ORDER BY CASE ai.priority WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END, ai.due_date";
     const items = db.prepare(query).all(...params);
     res.json(items);
   } catch (error) {
@@ -28,11 +32,21 @@ router.post('/', (req, res) => {
   try {
     const db = getDb();
     const id = uuidv4();
-    const { assessment_id, report_id, title, description, category, priority, assignee_id, assignee_name, due_date, effort, impact, phase } = req.body;
+    const { assessment_id, report_id, title, description, category, priority, assignee_id, assignee_name, due_date, effort, impact, phase, created_by } = req.body;
     db.prepare(`
-      INSERT INTO action_items (id, assessment_id, report_id, title, description, category, priority, assignee_id, assignee_name, due_date, effort, impact, phase)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, assessment_id, report_id || null, title, description || '', category || '', priority || 'medium', assignee_id || null, assignee_name || null, due_date || null, effort || '', impact || '', phase || '');
+      INSERT INTO action_items (id, assessment_id, report_id, title, description, category, priority, assignee_id, assignee_name, due_date, effort, impact, phase, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, assessment_id, report_id || null, title, description || '', category || '', priority || 'medium', assignee_id || null, assignee_name || null, due_date || null, effort || '', impact || '', phase || '', created_by || null);
+    
+    // Log creation
+    db.prepare(`INSERT INTO action_item_logs (id, action_item_id, action, to_value, user_name, note) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(uuidv4(), id, 'created', 'todo', created_by || 'System', `Action item created: "${title}"`);
+    
+    if (assignee_name) {
+      db.prepare(`INSERT INTO action_item_logs (id, action_item_id, action, to_value, user_name, note) VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(uuidv4(), id, 'assigned', assignee_name, created_by || 'System', `Assigned to ${assignee_name}`);
+    }
+    
     const item = db.prepare('SELECT * FROM action_items WHERE id = ?').get(id);
     res.status(201).json(item);
   } catch (error) {
@@ -44,7 +58,12 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const db = getDb();
-    const { title, description, priority, status, assignee_id, assignee_name, due_date, progress, notes } = req.body;
+    const { title, description, priority, status, assignee_id, assignee_name, due_date, progress, notes, updated_by } = req.body;
+    
+    // Get current item for comparison (logging)
+    const current = db.prepare('SELECT * FROM action_items WHERE id = ?').get(req.params.id);
+    if (!current) return res.status(404).json({ error: 'Action item not found' });
+    
     const updates = [];
     const values = [];
     if (title !== undefined) { updates.push('title = ?'); values.push(title); }
@@ -60,6 +79,30 @@ router.put('/:id', (req, res) => {
     updates.push('updated_at = CURRENT_TIMESTAMP');
     values.push(req.params.id);
     db.prepare(`UPDATE action_items SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+    
+    // Log changes
+    const userName = updated_by || 'System';
+    
+    if (status !== undefined && status !== current.status) {
+      db.prepare(`INSERT INTO action_item_logs (id, action_item_id, action, from_value, to_value, user_name, note) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        .run(uuidv4(), req.params.id, 'status_change', current.status, status, userName, `Status changed from "${current.status}" to "${status}"`);
+    }
+    
+    if (assignee_name !== undefined && assignee_name !== current.assignee_name) {
+      db.prepare(`INSERT INTO action_item_logs (id, action_item_id, action, from_value, to_value, user_name, note) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        .run(uuidv4(), req.params.id, 'assigned', current.assignee_name || 'Unassigned', assignee_name || 'Unassigned', userName, `Reassigned from "${current.assignee_name || 'Unassigned'}" to "${assignee_name || 'Unassigned'}"`);
+    }
+    
+    if (priority !== undefined && priority !== current.priority) {
+      db.prepare(`INSERT INTO action_item_logs (id, action_item_id, action, from_value, to_value, user_name, note) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        .run(uuidv4(), req.params.id, 'priority_change', current.priority, priority, userName, `Priority changed from "${current.priority}" to "${priority}"`);
+    }
+    
+    if (notes !== undefined && notes !== current.notes && notes) {
+      db.prepare(`INSERT INTO action_item_logs (id, action_item_id, action, to_value, user_name, note) VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(uuidv4(), req.params.id, 'note_added', notes, userName, `Note added`);
+    }
+    
     const item = db.prepare('SELECT * FROM action_items WHERE id = ?').get(req.params.id);
     res.json(item);
   } catch (error) {
@@ -86,6 +129,39 @@ router.get('/burndown/:assessmentId', (req, res) => {
       done: completed
     };
     res.json({ total, completed, percentage: total > 0 ? Math.round((completed / total) * 100) : 0, byPhase, byStatus });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get activity logs for an action item
+router.get('/:id/logs', (req, res) => {
+  try {
+    const db = getDb();
+    const logs = db.prepare('SELECT * FROM action_item_logs WHERE action_item_id = ? ORDER BY created_at DESC').all(req.params.id);
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add a manual note/log entry
+router.post('/:id/notes', (req, res) => {
+  try {
+    const db = getDb();
+    const { note, user_name } = req.body;
+    if (!note) return res.status(400).json({ error: 'Note is required' });
+    const id = uuidv4();
+    db.prepare(`INSERT INTO action_item_logs (id, action_item_id, action, user_name, note) VALUES (?, ?, ?, ?, ?)`)
+      .run(id, req.params.id, 'note_added', user_name || 'System', note);
+    // Also update the notes field on the action item
+    const current = db.prepare('SELECT notes FROM action_items WHERE id = ?').get(req.params.id);
+    const existingNotes = current?.notes || '';
+    const timestamp = new Date().toISOString().split('T')[0];
+    const updatedNotes = existingNotes ? `${existingNotes}\n[${timestamp}] ${note}` : `[${timestamp}] ${note}`;
+    db.prepare('UPDATE action_items SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(updatedNotes, req.params.id);
+    const log = db.prepare('SELECT * FROM action_item_logs WHERE id = ?').get(id);
+    res.status(201).json(log);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

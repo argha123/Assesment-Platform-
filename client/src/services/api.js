@@ -120,6 +120,8 @@ export const createActionItem = (data) => api.post('/action-items', data);
 export const updateActionItem = (id, data) => api.put(`/action-items/${id}`, data);
 export const deleteActionItem = (id) => api.delete(`/action-items/${id}`);
 export const getBurnDown = (assessmentId) => api.get(`/action-items/burndown/${assessmentId}`);
+export const getActionItemLogs = (id) => api.get(`/action-items/${id}/logs`);
+export const addActionItemNote = (id, data) => api.post(`/action-items/${id}/notes`, data);
 
 // ===========================================
 // Templates
