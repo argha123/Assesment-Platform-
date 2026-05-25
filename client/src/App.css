@@ -2141,3 +2141,61 @@ table a:hover {
 .sidebar-footer .footer-user:hover {
   background: rgba(255, 255, 255, 0.05);
 }
+
+/* ===========================================
+   Enterprise Report Detail Styles
+   =========================================== */
+
+.report-detail-enterprise {
+  animation: pageFade 360ms var(--ease-out);
+}
+
+.report-header-banner {
+  background: linear-gradient(135deg, var(--brand-50) 0%, var(--gray-50) 50%, var(--accent-500)08 100%);
+  border: 1px solid var(--brand-100);
+  border-radius: var(--r-xl);
+  padding: 24px 28px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.report-header-banner::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -10%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.08), transparent 70%);
+  pointer-events: none;
+}
+
+.report-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+
+/* Heatmap table specific styles */
+.heatmap-table td,
+.heatmap-table th {
+  vertical-align: top;
+  padding: 16px;
+}
+
+.heatmap-table tbody tr {
+  border-bottom: 1px solid var(--border);
+}
+
+.heatmap-table tbody tr:nth-child(even) {
+  background: var(--gray-25);
+}
+
+.heatmap-table tbody tr:hover {
+  background: var(--brand-50);
+}

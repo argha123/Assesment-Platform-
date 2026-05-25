@@ -21,25 +21,39 @@ router.get('/pdf/:reportId', (req, res) => {
     doc.pipe(res);
 
     // Title page
-    doc.fontSize(24).font('Helvetica-Bold').text('IT Infrastructure Assessment Report', { align: 'center' });
+    doc.fontSize(28).font('Helvetica-Bold').text('IT Infrastructure', { align: 'center' });
+    doc.fontSize(28).text('Assessment Report', { align: 'center' });
+    doc.moveDown(2);
+    doc.fontSize(18).font('Helvetica').text(report.account_name, { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(14).text(report.assessment_title, { align: 'center' });
     doc.moveDown();
-    doc.fontSize(16).font('Helvetica').text(report.account_name, { align: 'center' });
-    doc.fontSize(12).text(report.assessment_title, { align: 'center' });
-    doc.moveDown();
-    doc.text(`Generated: ${new Date(report.generated_at).toLocaleDateString()}`, { align: 'center' });
+    doc.fontSize(12).fillColor('#666666').text(`Generated: ${new Date(report.generated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, { align: 'center' });
     doc.moveDown(3);
 
-    // Scores
-    doc.fontSize(18).font('Helvetica-Bold').text('Assessment Scores');
+    // Overall Score
+    const overallPct = ((report.overall_score || 0) / 10 * 100).toFixed(2);
+    const healthState = overallPct >= 90 ? 'Green' : overallPct >= 70 ? 'Amber' : 'Red';
+    doc.fontSize(16).font('Helvetica-Bold').fillColor('#000000').text(`Overall Score: ${overallPct}% (${healthState})`, { align: 'center' });
+    doc.moveDown(2);
+
+    // Health Score Legend
+    doc.fontSize(10).font('Helvetica').fillColor('#666666');
+    doc.text('Health Score Legend: Red <70% | Amber 70%-90% | Green >90%', { align: 'center' });
+    doc.moveDown(3);
+
+    // Scores Table
+    doc.fontSize(16).font('Helvetica-Bold').fillColor('#000000').text('Assessment Scores');
     doc.moveDown();
     doc.fontSize(12).font('Helvetica');
-    doc.text(`Overall Score: ${report.overall_score}/10`);
-    doc.text(`People: ${report.people_score}/10`);
-    doc.text(`Process: ${report.process_score}/10`);
-    doc.text(`Technology: ${report.technology_score}/10`);
+    doc.text(`Overall Score: ${report.overall_score}/10 (${overallPct}%)`);
+    doc.text(`People: ${report.people_score}/10 (${((report.people_score || 0) / 10 * 100).toFixed(1)}%)`);
+    doc.text(`Process: ${report.process_score}/10 (${((report.process_score || 0) / 10 * 100).toFixed(1)}%)`);
+    doc.text(`Technology: ${report.technology_score}/10 (${((report.technology_score || 0) / 10 * 100).toFixed(1)}%)`);
     doc.moveDown(2);
 
     // Executive Summary
+    doc.addPage();
     doc.fontSize(18).font('Helvetica-Bold').text('Executive Summary');
     doc.moveDown();
     doc.fontSize(11).font('Helvetica').text(report.executive_summary || 'No summary available');
@@ -49,9 +63,19 @@ router.get('/pdf/:reportId', (req, res) => {
     const recommendations = JSON.parse(report.recommendations || '[]');
     if (recommendations.length > 0) {
       doc.addPage();
-      doc.fontSize(18).font('Helvetica-Bold').text('Recommendations');
+      doc.fontSize(18).font('Helvetica-Bold').text('Findings & Recommendations');
       doc.moveDown();
+      
+      // Summary counts
+      const highCount = recommendations.filter(r => r.priority === 'critical' || r.priority === 'high').length;
+      const medCount = recommendations.filter(r => r.priority === 'medium').length;
+      const lowCount = recommendations.filter(r => r.priority === 'low').length;
+      doc.fontSize(11).font('Helvetica');
+      doc.text(`Total Findings: ${recommendations.length} (High: ${highCount}, Medium: ${medCount}, Low: ${lowCount})`);
+      doc.moveDown();
+      
       recommendations.forEach((rec, i) => {
+        if (doc.y > 680) doc.addPage();
         doc.fontSize(12).font('Helvetica-Bold').text(`${i + 1}. [${rec.priority.toUpperCase()}] ${rec.title}`);
         doc.fontSize(10).font('Helvetica').text(rec.description);
         doc.text(`Category: ${rec.category} | Effort: ${rec.effort} | Timeline: ${rec.timeline}`);
@@ -63,20 +87,29 @@ router.get('/pdf/:reportId', (req, res) => {
     const actionPlan = JSON.parse(report.action_plan || '{}');
     if (actionPlan.thirtyDays) {
       doc.addPage();
-      doc.fontSize(18).font('Helvetica-Bold').text('30-60-90 Day Action Plan');
+      doc.fontSize(18).font('Helvetica-Bold').text('30-60-90 Day Action Plan (ZDO Framework)');
+      doc.moveDown();
+      doc.fontSize(10).font('Helvetica').fillColor('#666666');
+      doc.text('ZDO = Zero Defective Operations | 30 days: High | 60 days: Medium | 90 days: Low');
+      doc.fillColor('#000000');
       doc.moveDown();
       
       ['thirtyDays', 'sixtyDays', 'ninetyDays'].forEach(phase => {
         const plan = actionPlan[phase];
         if (plan) {
+          if (doc.y > 650) doc.addPage();
           doc.fontSize(14).font('Helvetica-Bold').text(plan.title);
           doc.moveDown(0.5);
           doc.fontSize(10).font('Helvetica');
           (plan.objectives || []).forEach(obj => doc.text(`  • ${obj}`));
-          doc.moveDown();
+          doc.moveDown(0.5);
           (plan.actions || []).forEach(action => {
             doc.text(`  → ${action.title} (${action.category}, ${action.effort} effort)`);
           });
+          doc.moveDown(0.5);
+          doc.fontSize(9).fillColor('#666666').text('Expected Outcomes:');
+          doc.fillColor('#000000');
+          (plan.expectedOutcomes || []).forEach(o => doc.text(`    ✓ ${o}`));
           doc.moveDown();
         }
       });

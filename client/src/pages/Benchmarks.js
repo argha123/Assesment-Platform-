@@ -44,7 +44,7 @@ function Benchmarks() {
   const buildChart = () => {
     if (!comparison) return [];
     return ['people', 'process', 'technology'].map(cat => {
-      const b = comparison.benchmarks?.[`${cat}_overall`] || {};
+      const b = comparison.benchmarks?.[`${cat}_overall`] || comparison.benchmarks?.[`${cat}_null`] || {};
       return {
         name: cat.charAt(0).toUpperCase() + cat.slice(1),
         Score:        comparison.assessment_scores?.[cat] || 0,
@@ -103,13 +103,34 @@ function Benchmarks() {
           <div className="empty-state-icon"><IconTrendingUp size={28} /></div>
           <p>No benchmark data available for this assessment's industry.</p>
         </div>
-      ) : (
+      ) : (() => {
+        // Ensure position data always exists for rendering
+        const positions = {};
+        ['people', 'process', 'technology'].forEach(cat => {
+          if (comparison.position?.[cat]) {
+            positions[cat] = comparison.position[cat];
+          } else {
+            const score = comparison.assessment_scores?.[cat] || 0;
+            const b = comparison.benchmarks?.[`${cat}_overall`] || comparison.benchmarks?.[`${cat}_null`] || {};
+            const avg = b.avg || 5.5;
+            const median = b.median || 5.2;
+            const top_q = b.top_quartile || 7.5;
+            const bottom_q = b.bottom_quartile || 3.5;
+            positions[cat] = {
+              score,
+              vs_avg: score - avg,
+              percentile: score >= top_q ? 'top_25' : score >= median ? 'above_median' : score >= bottom_q ? 'below_median' : 'bottom_25'
+            };
+          }
+        });
+
+        return (
         <>
           {/* Position cards */}
           <div className="stats-grid">
             {['people', 'process', 'technology'].map(cat => {
-              const pos = comparison.position?.[cat];
-              if (!pos) return null;
+              const pos = positions[cat];
+              if (!pos || !pos.score) return null;
               const meta = PERCENTILE_LABEL[pos.percentile] || PERCENTILE_LABEL.below_median;
               return (
                 <div key={cat} className="stat-card">
@@ -139,37 +160,33 @@ function Benchmarks() {
           {/* Chart */}
           <div className="chart-card">
             <h3>Your Score vs Industry · {comparison.industry || 'All Industries'}</h3>
-            {chartData.length === 0 ? (
-              <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-tertiary)' }}>No benchmark data</div>
-            ) : (
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={chartData} barGap={6} barCategoryGap="20%">
-                  <defs>
-                    <linearGradient id="bScore" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor="#6366f1" />
-                      <stop offset="100%" stopColor="#818cf8" />
-                    </linearGradient>
-                    <linearGradient id="bAvg" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor="#94a3b8" />
-                      <stop offset="100%" stopColor="#cbd5e1" />
-                    </linearGradient>
-                    <linearGradient id="bTop" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor="#10b981" />
-                      <stop offset="100%" stopColor="#34d399" />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" tickLine={false} />
-                  <YAxis domain={[0, 10]} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={{ fill: 'rgba(99, 102, 241, 0.06)' }} />
-                  <Legend />
-                  <ReferenceLine y={5} stroke="#cbd5e1" strokeDasharray="3 3" />
-                  <Bar dataKey="Score"        fill="url(#bScore)" radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="Average"      fill="url(#bAvg)"   radius={[6, 6, 0, 0]} />
-                  <Bar dataKey="TopQuartile"  fill="url(#bTop)"   radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={chartData} barGap={6} barCategoryGap="20%">
+                <defs>
+                  <linearGradient id="bScore" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor="#6366f1" />
+                    <stop offset="100%" stopColor="#818cf8" />
+                  </linearGradient>
+                  <linearGradient id="bAvg" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor="#94a3b8" />
+                    <stop offset="100%" stopColor="#cbd5e1" />
+                  </linearGradient>
+                  <linearGradient id="bTop" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor="#10b981" />
+                    <stop offset="100%" stopColor="#34d399" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                <XAxis dataKey="name" tickLine={false} />
+                <YAxis domain={[0, 10]} tickLine={false} axisLine={false} />
+                <Tooltip cursor={{ fill: 'rgba(99, 102, 241, 0.06)' }} />
+                <Legend />
+                <ReferenceLine y={5} stroke="#cbd5e1" strokeDasharray="3 3" />
+                <Bar dataKey="Score"        fill="url(#bScore)" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="Average"      fill="url(#bAvg)"   radius={[6, 6, 0, 0]} />
+                <Bar dataKey="TopQuartile"  fill="url(#bTop)"   radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
 
           {/* Detailed comparison table */}
@@ -192,8 +209,8 @@ function Benchmarks() {
                 </thead>
                 <tbody>
                   {['people', 'process', 'technology'].map(cat => {
-                    const b = comparison.benchmarks?.[`${cat}_overall`] || {};
-                    const pos = comparison.position?.[cat];
+                    const b = comparison.benchmarks?.[`${cat}_overall`] || comparison.benchmarks?.[`${cat}_null`] || {};
+                    const pos = positions[cat];
                     const meta = pos && (PERCENTILE_LABEL[pos.percentile] || PERCENTILE_LABEL.below_median);
                     return (
                       <tr key={cat}>
@@ -214,7 +231,8 @@ function Benchmarks() {
             </div>
           </div>
         </>
-      )}
+        );
+      })()}
     </div>
   );
 }

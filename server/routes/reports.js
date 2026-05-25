@@ -51,7 +51,7 @@ router.get('/:id', (req, res) => {
     const db = getDb();
     const report = db.prepare(`
       SELECT r.*, a.title as assessment_title, a.overall_score, a.people_score, a.process_score, a.technology_score,
-        acc.name as account_name, acc.industry
+        a.id as assessment_id, acc.name as account_name, acc.industry, acc.company_size
       FROM reports r
       JOIN assessments a ON r.assessment_id = a.id
       JOIN accounts acc ON r.account_id = acc.id

@@ -369,42 +369,84 @@ function generate306090Plan(scores, recommendations, assessment) {
 
 function generateExecutiveSummary(assessment, scores, maturityLevel) {
   const overallScore = assessment.overall_score || 0;
+  const overallPct = (overallScore / 10 * 100).toFixed(2);
   const accountName = assessment.account_name || 'the organization';
   const industry = assessment.industry || 'IT';
   
+  // Determine health state
+  let healthState = 'Red';
+  if (overallPct >= 90) healthState = 'Green';
+  else if (overallPct >= 70) healthState = 'Amber';
+  
   const categoryScores = Object.entries(scores.categoryBreakdown)
-    .map(([cat, data]) => `${cat.charAt(0).toUpperCase() + cat.slice(1)}: ${data.avgScore}/10`)
+    .map(([cat, data]) => `${cat.charAt(0).toUpperCase() + cat.slice(1)}: ${data.avgScore}/10 (${(data.avgScore / 10 * 100).toFixed(1)}%)`)
     .join(', ');
   
   const gaps = identifyGaps(scores);
   const strengths = identifyStrengths(scores);
+  const recommendations = generateRecommendations(scores, assessment);
   
-  let summary = `Executive Summary - IT Infrastructure Assessment for ${accountName}\n\n`;
-  summary += `Overall Maturity Level: ${maturityLevel.level}/5 - ${maturityLevel.name}\n`;
+  // Count findings by priority
+  const highCount = recommendations.filter(r => r.priority === 'critical' || r.priority === 'high').length;
+  const medCount = recommendations.filter(r => r.priority === 'medium').length;
+  const lowCount = recommendations.filter(r => r.priority === 'low').length;
+  
+  // Track-level scores
+  const trackScores = Object.entries(scores.subcategoryBreakdown)
+    .map(([key, data]) => ({ name: data.subcategory, score: data.avgScore, pct: (data.avgScore / 10 * 100).toFixed(1) }))
+    .sort((a, b) => b.score - a.score);
+  
+  let summary = `EXECUTIVE SUMMARY — IT Infrastructure Assessment\n`;
+  summary += `Account: ${accountName} | Industry: ${industry}\n`;
+  summary += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  
+  summary += `OVERALL ASSESSMENT SCORE: ${overallPct}% (${healthState})\n`;
+  summary += `Maturity Level: ${maturityLevel.level}/5 — ${maturityLevel.name}\n`;
   summary += `${maturityLevel.description}\n\n`;
-  summary += `Category Scores: ${categoryScores}\n`;
-  summary += `Overall Score: ${overallScore}/10\n\n`;
+  
+  summary += `CATEGORY SCORES:\n`;
+  summary += `${categoryScores}\n\n`;
+  
+  if (trackScores.length > 0) {
+    summary += `TRACK-LEVEL SCORES:\n`;
+    trackScores.forEach(t => {
+      const state = t.pct >= 90 ? '🟢' : t.pct >= 70 ? '🟡' : '🔴';
+      summary += `${state} ${t.name}: ${t.pct}%\n`;
+    });
+    summary += '\n';
+  }
+  
+  summary += `ASSESSMENT FINDINGS:\n`;
+  summary += `Total findings: ${highCount + medCount + lowCount}\n`;
+  summary += `• High impact (action within 30 days): ${highCount}\n`;
+  summary += `• Medium impact (action within 60 days): ${medCount}\n`;
+  summary += `• Low impact (action within 90 days): ${lowCount}\n\n`;
   
   if (strengths.length > 0) {
-    summary += `Key Strengths:\n`;
-    strengths.slice(0, 3).forEach(s => {
-      summary += `- ${s.description} (${s.score}/10)\n`;
+    summary += `KEY STRENGTHS:\n`;
+    strengths.slice(0, 5).forEach(s => {
+      summary += `✓ ${s.description} (${s.score}/10)\n`;
     });
     summary += '\n';
   }
   
   if (gaps.length > 0) {
-    summary += `Critical Gaps Identified:\n`;
+    summary += `CRITICAL GAPS IDENTIFIED:\n`;
     gaps.slice(0, 5).forEach(g => {
-      summary += `- ${g.description} (${g.score}/10) [${g.severity}]\n`;
+      summary += `✗ ${g.description} (${g.score}/10) [${g.severity.toUpperCase()}]\n`;
     });
     summary += '\n';
   }
   
-  summary += `This assessment evaluated ${accountName}'s IT infrastructure across People, Process, and Technology dimensions. `;
-  summary += `The organization is currently at Maturity Level ${maturityLevel.level} (${maturityLevel.name}), `;
-  summary += `indicating ${maturityLevel.description.toLowerCase()}. `;
-  summary += `A structured 30-60-90 day improvement plan has been developed to systematically address identified gaps and advance organizational maturity.`;
+  summary += `ASSESSMENT METHODOLOGY:\n`;
+  summary += `This assessment evaluated ${accountName}'s IT infrastructure across People, Process, and Technology dimensions using the ZDO (Zero Defective Operations) framework. `;
+  summary += `The organization is currently at Maturity Level ${maturityLevel.level} (${maturityLevel.name}), indicating ${maturityLevel.description.toLowerCase()}. `;
+  summary += `Assessment findings are categorized based on their impact, with mitigation recommendations following a structured 30-60-90 day improvement plan.\n\n`;
+  
+  summary += `MITIGATION TIMELINE:\n`;
+  summary += `• High impact findings — within 30 days\n`;
+  summary += `• Medium impact findings — within 60 days\n`;
+  summary += `• Low impact findings — within 90 days\n`;
   
   return summary;
 }
